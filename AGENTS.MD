@@ -1,0 +1,169 @@
+---
+description: Core project conventions — code style, error handling, testing, security, git
+globs:
+alwaysApply: true
+---
+
+# Project Conventions
+
+These rules are loaded automatically by Cursor on every Agent interaction (`alwaysApply: true`). They define the baseline behaviour expected across the entire codebase, regardless of file type.
+
+---
+
+## Build & Verify Commands
+
+- Build:            `<your build command>`
+- Test (single):    `<your single-test command>`
+- Lint / typecheck: `<your lint command>`
+
+Always run lint/typecheck after a series of edits.
+
+## Code Style
+
+- Prefer functional programming over OOP; use classes only for connectors and interfaces to external systems.
+- Write pure functions — return new values, never mutate input parameters or global state.
+- Write single-purpose functions — no multi-mode behaviour, no flag parameters that switch logic branches.
+- Never use default parameter values — make all parameters explicit at the call site.
+- Create named type definitions for complex data structures; no anonymous inline shapes crossing function boundaries.
+- Before writing new logic, search the codebase with `rg` for existing implementations.
+- Follow YAGNI — do not add abstractions for speculative future use cases.
+- Keep diffs small; prefer targeted edits over wide refactors unless the full refactor is the explicit task.
+
+## Error Handling
+
+- Raise errors explicitly at the point of failure; never swallow exceptions silently.
+- Use specific error types; avoid generic catch-alls that hide root causes.
+- Fix root causes, not symptoms; no workaround shims unless the root fix is out of scope.
+- No fallbacks or degraded-mode logic unless explicitly requested.
+- External service calls: retry with exponential backoff, log each retry as a warning, re-raise the last error.
+- Error messages must include: request params, response body, status codes, correlation IDs.
+- Use structured logging fields — do not interpolate dynamic values into message strings.
+
+## Testing
+
+- Match the existing test strategy; do not introduce new frameworks without discussion.
+- Do not add tests unless the task explicitly requires them.
+- Prefer integration or end-to-end tests over unit tests.
+- Avoid mocks when real service calls are practical.
+- Unit tests are acceptable for pure data-transformation functions only.
+- Never add tests to increase coverage numbers.
+
+## Security — NEVER
+
+- Commit secrets, API keys, tokens, passwords, or `.env` files.
+- Force-push to `main`, `master`, or any protected branch.
+- Add new external dependencies without asking first.
+- Log or print PII, credentials, or tokens.
+- Build SQL queries or shell commands via string concatenation.
+
+## Security — ASK FIRST
+
+- Adding any new external dependency (explain what it replaces).
+- Running database migrations.
+- Deleting or renaming files.
+- Modifying CI/CD configs or deployment definitions.
+- Touching authentication or authorization logic.
+
+## Security — ALWAYS
+
+- Validate and sanitize external input before use in queries, shell calls, or file paths.
+- Use parameterized queries for all database interactions.
+- Reference secrets by environment variable name, never by value.
+
+## Git
+
+- Conventional commits: `type(scope): description`
+  Valid types: `feat` `fix` `refactor` `test` `chore` `docs`
+- Atomic commits — one logical change per commit.
+- Branch naming: `type/short-description`.
+- Non-interactive diff: `git --no-pager diff` or `git diff | cat`.
+
+## Workflow
+
+- Keep changes minimal and scoped to the current task.
+- Use `rg` for codebase search; use non-interactive flags on all shell commands.
+- Before writing new code, search for similar existing patterns first.
+- When the correct approach is unclear, stop and ask — do not guess.
+- Explain the plan before writing code when the task spans more than two files.
+
+## Agentic Loops
+
+- Treat an agent as an LLM calling tools in a loop: **Observe → Reason → Act → repeat** until a stop condition is met.
+- Design long-running loops to be resumable. Persist checkpoints, scratchpads, or explicit state so work can continue after interruption.
+- Scale effort to task complexity. Give explicit step budgets, completion criteria, and verification checks so the agent knows when to stop.
+- Prefer append-only context for loop state when practical. Avoid rewriting prior observations just to restate them.
+- Keep failed tool results and error evidence in context unless they contain sensitive data; the agent uses them to avoid repeating mistakes.
+
+## Graph Workflows
+
+- Structure larger agent systems as directed graphs: nodes for actions, edges for transitions, and explicit state passed between nodes.
+- Use deterministic workflow nodes for routing, validation, and formatting; use agent nodes only where open-ended reasoning is required.
+- Separate planning from execution. Review the plan before any write, run, or irreversible step.
+- Prefer orchestrator-worker topologies over peer-to-peer worker coordination unless decentralization is the explicit requirement.
+- Keep tool sets small, distinct, and well-described. Prefer a few atomic tools over many overlapping ones.
+
+## Memory & Context
+
+- Design for four memory layers: **working** (current session), **episodic** (history), **semantic** (facts), and **procedural** (rules such as `.mdc` files).
+- For long tasks, externalize the plan and current progress to a scratchpad, state field, or task tracker and re-read it regularly to prevent drift.
+- Apply four context strategies deliberately: **write**, **select**, **compress**, and **isolate**.
+- Protect high-priority constraints and safety rules from decay or summarization; compact stale low-value context instead of letting it grow forever.
+- Keep execution traces for non-deterministic systems — every model call, tool action, and state transition should be inspectable.
+
+## Human Oversight for Agents
+
+- Pause for approval before high-risk or irreversible actions.
+- Never execute raw model output directly; validate structured outputs before turning them into commands, code, or workflow transitions.
+- Run generated code and high-trust actions in sandboxed, least-privilege environments.
+
+## Documentation
+
+- Documentation lives in docstrings/JSDoc of the functions or classes it describes.
+- Separate docs files only for ADRs, onboarding guides, or cross-module architecture concepts.
+- Never duplicate documentation across files — one canonical location.
+- Document current state only; no changelogs or history in docstrings.
+- Comment *why*, not *what* — never restate what the code already says.
+
+---
+
+## Cursor-Specific Notes
+
+- This file lives at `cursor/.cursor/rules/project-always.mdc` in the AI-Helpers repo; copy it to `.cursor/rules/project-always.mdc` at the root of your own project — the path Cursor scans for Agent rules.
+- `alwaysApply: true` ensures these rules load on **every** Agent interaction without requiring semantic matching.
+- For language- or path-scoped rules, create companion `.mdc` files with a `globs` front-matter key, for example:
+
+  ```yaml
+  ---
+  description: TypeScript-specific rules
+  globs: "**/*.{ts,tsx}"
+  alwaysApply: false
+  ---
+  ```
+
+  Place scoped files alongside this one in `.cursor/rules/`.
+
+### MCP Servers
+
+Add external tools (databases, APIs, custom capabilities) by creating `.cursor/mcp.json` at the project root:
+
+```json
+{
+  "mcpServers": {
+    "my-tool": {
+      "command": "npx",
+      "args": ["-y", "@my-org/my-mcp-tool"]
+    }
+  }
+}
+```
+
+For global MCP servers (available in all projects), use `~/.cursor/mcp.json`. After adding a server, enable it in **Cursor Settings → MCP**.
+
+### Background Agents
+
+Cursor Background Agents run autonomously on GitHub issues and branches without requiring an open IDE session. To use:
+
+- Enable via **Cursor Settings → Beta → Background Agent**.
+- Trigger from the Cursor dashboard or by assigning issues; the agent opens a PR when done.
+- Background agents run in a sandboxed environment and can read/write files and run terminal commands.
+- These rules are automatically available to background agent sessions.
