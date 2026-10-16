@@ -44,6 +44,22 @@ jobs:
       - name: Import SDK
         run: python -c "from observability import Client, IngestError, IngestResult"
 
+  sdk-ts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sdk-ts/package-lock.json
+      - name: Install TypeScript SDK
+        working-directory: sdk-ts
+        run: npm ci
+      - name: Build TypeScript SDK
+        working-directory: sdk-ts
+        run: npm run build
+
   frontend:
     runs-on: ubuntu-latest
     steps:
